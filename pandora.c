@@ -1,4 +1,5 @@
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <time.h>
@@ -20,6 +21,7 @@ typedef enum {
 typedef struct {
     CellState state;
     int age; // Track cell age for dynamic patterns
+    bool has_moved; // Flag to track if the cell has moved this cycle
 } Cell;
 
 typedef struct {
@@ -34,6 +36,7 @@ void initialize_grid(Cell grid[GRID_HEIGHT][GRID_WIDTH]) {
         for (int x = 0; x < GRID_WIDTH; x++) {
             grid[y][x].state = (rand() % 4 == 0) ? STATE_ALIVE : STATE_DEAD;
             grid[y][x].age = 0;
+            grid[y][x].has_moved = false;
         }
     }
 }
@@ -77,6 +80,23 @@ CellState get_next_state(Cell grid[GRID_HEIGHT][GRID_WIDTH], int x, int y) {
     }
 }
 
+void attempt_move(Cell grid[GRID_HEIGHT][GRID_WIDTH], int x, int y) {
+    int directions[4][2] = {{0, -1}, {0, 1}, {-1, 0}, {1, 0}}; // Up, Down, Left, Right
+    int random_dir = rand() % 4;
+
+    int nx = x + directions[random_dir][0];
+    int ny = y + directions[random_dir][1];
+
+    if (nx >= 0 && nx < GRID_WIDTH && ny >= 0 && ny < GRID_HEIGHT) {
+        if (grid[ny][nx].state == STATE_DEAD) {
+            // Swap the cells
+            grid[ny][nx] = grid[y][x];
+            grid[y][x].state = STATE_DEAD;
+            grid[ny][nx].has_moved = true; // Mark as moved
+        }
+    }
+}
+
 void update_grid(Cell grid[GRID_HEIGHT][GRID_WIDTH], Statistics *stats) {
     Cell new_grid[GRID_HEIGHT][GRID_WIDTH];
     stats->alive_count = 0;
@@ -87,6 +107,12 @@ void update_grid(Cell grid[GRID_HEIGHT][GRID_WIDTH], Statistics *stats) {
         for (int x = 0; x < GRID_WIDTH; x++) {
             new_grid[y][x].state = get_next_state(grid, x, y);
             new_grid[y][x].age = (new_grid[y][x].state == grid[y][x].state) ? grid[y][x].age + 1 : 0;
+            new_grid[y][x].has_moved = false; // Reset movement flag
+
+            // Move the cell if it hasn't moved yet
+            if (grid[y][x].state != STATE_DEAD && !grid[y][x].has_moved) {
+                attempt_move(grid, x, y);
+            }
 
             // Update statistics
             if (new_grid[y][x].state == STATE_ALIVE) {
